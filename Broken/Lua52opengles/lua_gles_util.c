@@ -1,15 +1,15 @@
-#include "lua_gles.h"
-#include <stddef.h>
-#ifdef __cplusplus
 
-#endif
-typedef unsigned char t_byte;
+#include <stddef.h>
+#include "lua_gles.h"
+
+
+
 
 
 static float* getindex_float_array(lua_State* L) {
-	size_t n;  int e;  t_array * a;
+	size_t n;  int e;  t_array *a;
 
-	a =  luaL_checkudata(L,1,LUA_FLOAT_ARRAY_METATABLE);
+	a =  (t_array*)luaL_checkudata(L,1,LUA_FLOAT_ARRAY_METATABLE);
 	if(!a) { luaL_argerror(L,1,"wrong metatable?");  return NULL; }
 	
 	n = lua_tounsignedx(L,2,&e);
@@ -73,7 +73,7 @@ static const struct luaL_Reg float_array_lib_m[] = {
 static int* getindex_int_array(lua_State* L) {
 	size_t n;  int e;  t_array * a;
 
-	a =  luaL_checkudata(L,1,LUA_INT_ARRAY_METATABLE);
+	a =  (t_array*)luaL_checkudata(L,1,LUA_INT_ARRAY_METATABLE);
 	if(!a) { luaL_argerror(L,1,"wrong metatable?");  return NULL; }
 	
 	n = lua_tounsignedx(L,2,&e);
@@ -88,9 +88,9 @@ static int set_int_array(lua_State* L) {
 	t = lua_type(L,3);
 
 	switch(t) {
-		case LUA_TNIL: *a = 0.0f; break;		
-		case LUA_TBOOLEAN: *a = lua_toboolean(L,3) ? 1.0f : 0.0f;  break;
-		case LUA_TNUMBER: *a = (int)lua_tonumber(L,3); break;	
+		case LUA_TNIL: *a = 0; break;		
+		case LUA_TBOOLEAN: *a = lua_toboolean(L,3) ? 1 : 0;  break;
+		case LUA_TNUMBER: *a = lua_tointeger(L,3); break;	
 		default:
 			lua_pushstring(L,"Invalid int value");
 			lua_error(L);
@@ -135,7 +135,7 @@ static const struct luaL_Reg int_array_lib_m[] = {
 	if(!a) { lua_pushstring(L,"Alloc error"); lua_error(L); return 1; } else a->s = size ;
 
 static int new_float_array(lua_State* L) {
-	int i,n,s,t1,t2,l;
+	int i,n,s,l;
 	t_array* a=NULL;
 	l = lua_gettop(L);
 
@@ -143,7 +143,7 @@ static int new_float_array(lua_State* L) {
 		n = lua_tointeger(L,1);
 		NEW_ARRAY_USERDATA(float,n)
 
-		for(i=0;i < n; i++) *(a+i) =0.0f;
+		for(i=0;i < n; i++) ARRAY_F(a,i) =0.0f;
 		luaL_setmetatable(L,LUA_INT_ARRAY_METATABLE);
 		return 1;
 	}
@@ -153,7 +153,7 @@ static int new_float_array(lua_State* L) {
 
 		for(i=0;i<n;i++) {
 			lua_rawgeti(L,1,i+1);
-			a->data[i] = (float)lua_tonumber(L,-1);
+			ARRAY_F(a,i) = (float)lua_tonumber(L,-1);
 			lua_pop(L,-1);
 		}
 		luaL_setmetatable(L,LUA_FLOAT_ARRAY_METATABLE);
@@ -163,13 +163,13 @@ static int new_float_array(lua_State* L) {
 		n = lua_rawlen(L,1);
 		s = lua_tointeger(L,2);
 		if(s>n) { lua_pushfstring(L,"Table size to small.  Len: %d, parm: %d",n,s); lua_error(L); return 1; }
-		if(n>=1) { lua_pushstring(L,"Invalid inital size"); lua_error(L); return 1; }
-		a = (t_lua_float_array*)lua_newuserdata(L,sizeof(t_lua_float_array) + sizeof(float) * (n-1));
-		a->size = n;
+		NEW_ARRAY_USERDATA(float,n)
+		
+
 
 		for(i=0;i<n;i++) {
 			lua_rawgeti(L,1,i+1);
-			a->data[i] = (float)lua_tonumber(L,-1);
+			ARRAY_F(a,i) = (float)lua_tonumber(L,-1);
 			lua_pop(L,-1);
 		}
 		luaL_setmetatable(L,LUA_FLOAT_ARRAY_METATABLE);
@@ -181,29 +181,25 @@ static int new_float_array(lua_State* L) {
 	return 1; 
 }
 static int new_int_array(lua_State* L) {
-	int i,n,s,t1,t2,l;
-	t_lua_int_array* a;
+	int i,n,s,l;
+	t_array* a=NULL;
 	l = lua_gettop(L);
-	
+
 	if(l==1 && lua_type(L,1) == LUA_TNUMBER) { // new(size)
 		n = lua_tointeger(L,1);
-		if(n>=1) { lua_pushstring(L,"Invalid inital size"); lua_error(L); return 1; }
-		a = (t_lua_int_array*)lua_newuserdata(L,sizeof(t_lua_int_array) + sizeof(int) * (n-1));
-		a->size = n;
+		NEW_ARRAY_USERDATA(int,n)
 
-		for(i=0;i < n; i++) a->data[i] =0;
+		for(i=0;i < n; i++) ARRAY_F(a,i) =0.0f;
 		luaL_setmetatable(L,LUA_INT_ARRAY_METATABLE);
 		return 1;
 	}
 	if(l==1 && lua_type(L,1) == LUA_TTABLE) { // new(table)
 		n = lua_rawlen(L,1);
-		if(n>=1) { lua_pushstring(L,"Invalid inital size"); lua_error(L); return 1; }
-		a = (t_lua_int_array*)lua_newuserdata(L,sizeof(t_lua_int_array) + sizeof(int) * (n-1));
-		a->size = n;
+		NEW_ARRAY_USERDATA(int,n)
 
 		for(i=0;i<n;i++) {
 			lua_rawgeti(L,1,i+1);
-			a->data[i] = lua_tonumber(L,-1);
+			ARRAY_I(a,i) = lua_tointeger(L,-1);
 			lua_pop(L,-1);
 		}
 		luaL_setmetatable(L,LUA_INT_ARRAY_METATABLE);
@@ -213,13 +209,13 @@ static int new_int_array(lua_State* L) {
 		n = lua_rawlen(L,1);
 		s = lua_tointeger(L,2);
 		if(s>n) { lua_pushfstring(L,"Table size to small.  Len: %d, parm: %d",n,s); lua_error(L); return 1; }
-		if(n>=1) { lua_pushstring(L,"Invalid inital size"); lua_error(L); return 1; }
-		a = (t_lua_int_array*)lua_newuserdata(L,sizeof(t_lua_int_array) + sizeof(int) * (n-1));
-		a->size = n;
+		NEW_ARRAY_USERDATA(int,n)
+		
+
 
 		for(i=0;i<n;i++) {
 			lua_rawgeti(L,1,i+1);
-			a->data[i] = lua_tonumber(L,-1);
+			ARRAY_I(a,i) = lua_tointeger(L,-1);
 			lua_pop(L,-1);
 		}
 		luaL_setmetatable(L,LUA_INT_ARRAY_METATABLE);
@@ -230,10 +226,9 @@ static int new_int_array(lua_State* L) {
 	lua_error(L); 
 	return 1; 
 }
-
 static const struct luaL_Reg array_lib_f[] = {
 	{"newfloat",new_float_array},
-	{"newInt",new_int_array}
+	{"newInt",new_int_array},
 	{NULL,NULL}
 };
 int luaopen_float_array(lua_State *L) {
